@@ -1,8 +1,10 @@
 """Translation and deterministic libpostal address parsing nodes."""
 
+import json
+import re
 from functools import lru_cache
 
-from dotenv import load_dotenv
+from deep_translator import GoogleTranslator
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 try:
@@ -13,29 +15,25 @@ except (ImportError, OSError) as error:
 else:
     POSTAL_IMPORT_ERROR = None
 
-load_dotenv()
+def language_translation(addr: str) -> str:
+    return GoogleTranslator(source="auto", target="en").translate(addr)
+
+
+LANDMARK_PATTERNS = [
+    r"\bnear\b", r"\bopp\.?\b", r"\bopposite\b", r"\bbehind\b",
+    r"\bnext to\b", r"\badjacent to\b", r"\bbeside\b", r"\bclose to\b",
+]
+
+
+def strip_landmark_prefix(address: str) -> str:
+    for pattern in LANDMARK_PATTERNS:
+        address = re.sub(pattern, "", address, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", address).strip(" ,")
 
 
 @lru_cache
 def get_llm() -> ChatGoogleGenerativeAI:
-    """Create Gemini only when translation is requested."""
     return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-
-
-def language_translation(addr: str) -> str:
-    prompt = f"""You are an expert address translator.
-
-Convert only non-English parts of this address to English. Preserve its original
-structure and order. Do not add, remove, infer, or correct address data. If it
-is already English, return it unchanged. Return only the translated address.
-
-Address:
-{addr}
-"""
-    try:
-        return get_llm().invoke(prompt).content.strip()
-    except Exception as error:
-        raise RuntimeError("Address translation failed. Set GOOGLE_API_KEY and verify Gemini access.") from error
 
 
 LIBPOSTAL_LABELS = {
@@ -71,3 +69,44 @@ def address_parsing(address: str) -> dict[str, str]:
         if field:
             parsed[field] = ", ".join(filter(None, (parsed[field], value)))
     return parsed
+
+
+def add_confidence(parsed_address: dict) -> dict:
+    prompt = f"""
+You are an address validation expert.
+
+Given this parsed address:
+
+{parsed_address}
+
+Evaluate how complete and reliable it is.
+
+Scoring:
+- 90-100: Complete and unambiguous.
+- 70-89: Mostly complete with minor missing fields.
+- 50-69: Missing important fields.
+- Below 50: Incomplete or ambiguous.
+
+Return ONLY valid JSON in this format:
+
+{{
+    "confidence_score": 92,
+    "reason": "House number, road, city, state, postcode and country are present."
+}}
+"""
+
+    response = get_llm().invoke(prompt)
+    content = response.content if isinstance(response.content, str) else str(response.content)
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    required_fields = ("house_number", "street", "city", "state", "postal_code", "country")
+    present_count = sum(1 for field in required_fields if parsed_address.get(field))
+    confidence_score = max(0, min(100, 35 + present_count * 11))
+    reason = f"Model returned non-JSON output; heuristic score based on {present_count} key fields being present."
+    return {"confidence_score": confidence_score, "reason": reason}
+

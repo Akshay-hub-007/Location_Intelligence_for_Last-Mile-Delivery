@@ -1,30 +1,33 @@
-import httpx
+import asyncio
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+from geopy.geocoders import Nominatim
+
+
+geolocator = Nominatim(user_agent="my_app")
 
 
 async def get_lat_lon(address: str) -> dict[str, float | str] | None:
-    params = {
-        "q": address,
-        "format": "jsonv2",
-        "limit": 3,
-        "countrycodes": "in",
-        "addressdetails": 1,
-    }
-    headers = {"User-Agent": "pata-address-geocoder/1.0"}
-
-    async with httpx.AsyncClient(timeout=5) as client:
-        response = await client.get(NOMINATIM_URL, params=params, headers=headers)
-        response.raise_for_status()
-        results = response.json()
-
-    if not results:
+    location = await asyncio.to_thread(
+        geolocator.geocode,
+        address,
+        exactly_one=True,
+        addressdetails=True,
+        language="en",
+        country_codes="in",
+        timeout=5,
+    )
+    print("nooo resulkt")
+    if location is None:
         return None
 
-    best = results[0]
+    latitude = float(location.latitude)
+    longitude = float(location.longitude)
+    
     return {
-        "latitude": float(best["lat"]),
-        "longitude": float(best["lon"]),
-        "display_name": best["display_name"],
-        "importance": float(best.get("importance", 0)),
+        "lat": latitude,
+        "lon": longitude,
+        "latitude": latitude,
+        "longitude": longitude,
+        "display_name": location.address,
+        "normalized_address": location.address,
     }

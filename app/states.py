@@ -11,10 +11,12 @@ class AddressState(TypedDict):
     state: NotRequired[str]
     country: NotRequired[str]
     pincode: NotRequired[str]
+    lat: NotRequired[float]
+    lon: NotRequired[float]
     latitude: NotRequired[float]
     longitude: NotRequired[float]
     confidence_score: NotRequired[float]
-
+    confidence_reason: NotRequired[str]
 
 class UserAddress(TypedDict):
     name: str
