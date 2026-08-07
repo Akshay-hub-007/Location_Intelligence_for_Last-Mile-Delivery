@@ -103,15 +103,6 @@ The first build downloads the libpostal address model and can take time. Then vi
 http://localhost:8000/docs
 ```
 
-## Test from PowerShell
-
-```powershell
-Invoke-RestMethod http://localhost:8000/workflow/clean `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body '{"name":"John Doe","phone":"9999999999","pincode":"500001","landmark":"Near Charminar","address":"Charminar ke paas, Hyderabad"}'
-```
-
 ## Current limitations and next steps
 
 - Public Nominatim is suitable for a small demo only; production should use a geocoding provider or self-hosted service with caching and rate limits.
