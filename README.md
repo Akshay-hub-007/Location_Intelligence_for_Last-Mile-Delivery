@@ -97,11 +97,6 @@ docker build -t pata-address-api .
 docker run --rm -p 8000:8000 pata-address-api
 ```
 
-The first build downloads the libpostal address model and can take time. Then visit:
-
-```text
-http://localhost:8000/docs
-```
 
 ## Current limitations and next steps
 
