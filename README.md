@@ -120,7 +120,3 @@ Invoke-RestMethod http://localhost:8000/workflow/clean `
 - Query nearby OpenStreetMap landmarks to resolve phrases such as “opposite temple” or “near gate 2”.
 - Return a confidence score, evidence, and multiple candidates when the location is ambiguous.
 - Let customers or delivery agents confirm/correct the predicted map pin.
-
-## Privacy
-
-Keep the original address only for the time needed to create the geocode. Store any corrections as auditable, reversible structured data rather than silently replacing the user’s input.
