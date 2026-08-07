@@ -93,7 +93,6 @@ app/
 libpostal needs a native C library, so Docker is the simplest way to run the project on Windows.
 
 ```powershell
-cd C:\Users\dell\Documents\ChatGPT\hack
 docker build -t pata-address-api .
 docker run --rm -p 8000:8000 pata-address-api
 ```
