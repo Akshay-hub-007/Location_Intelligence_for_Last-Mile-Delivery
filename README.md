@@ -519,10 +519,6 @@ Coordinates
 Delivery Location
 ```
 
-### Core Principle
-
-> **Use specialized systems for speed and reliability, and use AI where reasoning actually adds value.**
-
 ---
 
 ## 📌 Project Status
