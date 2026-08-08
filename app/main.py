@@ -39,7 +39,7 @@ class CleanAddressRequest(BaseModel):
     lat: float | None = None
     lon: float | None = None
     address: str = Field(min_length=1, max_length=1_000, examples=["781 Franklin Ave, Brooklyn, NY 11216"])
-
+    
 
 # Temporary sample records. Replace this dictionary with a database repository.
 DUMMY_USERS: dict[int, dict[str, str]] = {
@@ -48,16 +48,38 @@ DUMMY_USERS: dict[int, dict[str, str]] = {
         "phone": "9876543210",
         "pincode": "500002",
         "landmark": "Charminar",
-        "address": " హైదరాబాద్, తెలంగాణ 500002",
+        "address": "చార్మినార్  హైదరాబాద్, తెలంగాణ 500002",
     },
     2: {
-        "name": "Ravi",
-        "phone": "9876501234",
-        "pincode": "560001",
-        "landmark": "Cubbon Park",
-        "address": "Near Cubbon Park, Bengaluru, Karnataka 560001",
+    "name": "Ravi",
+    "phone": "9876501234",
+    "pincode": "560001",
+    "landmark": "Cubbon Park",
+    "address": "22, Museum of Art & Photography, Kasturba Road, Shanthala Nagar, Bengaluru, Bengaluru Urban, Karnataka 560001",
+    },
+    3 :    {
+      "name": "Priya",
+      "phone": "9012345678",
+      "pincode": "560038",
+      "landmark": "Indiranagar Metro",
+      "address": "H.No 78, Sai Residency, 12th Main Rd, Indiranagar Metro daggara, HAL 2nd Stage, Bengaluru, Karnataka 560038"
+    },
+    4 : {
+      "name": "Naresh",
+      "phone": "9123456789",
+      "pincode": "400001",
+      "landmark": "Gateway of India",
+      "address": "Flat 12, Sea View Building, Colaba Causeway, Gateway of India ke paas, Colaba, Mumbai, Maharashtra 400001"
+    },
+    5 : {
+      "name": "Kiran",
+      "phone": "9988776655",
+      "pincode": "600001",
+      "landmark": "Chennai Central",
+      "address": "No 48, Sri Lakshmi Complex, Poonamallee High Rd, Chennai Central daggara, Park Town, Chennai, Tamil Nadu 600001"
     },
 }
+
 
 
 def require_libpostal() -> None:
@@ -129,6 +151,9 @@ def list_users() -> list[dict[str, str | int]]:
         {
             "id": user_id,
             "name": user["name"],
+            "phone": user["phone"],
+            "pincode": user["pincode"],
+            "address": user["address"],
             "detail_url": f"/users/{user_id}/address",
         }
         for user_id, user in DUMMY_USERS.items()

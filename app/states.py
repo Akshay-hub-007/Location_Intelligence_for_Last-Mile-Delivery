@@ -17,6 +17,11 @@ class AddressState(TypedDict):
     longitude: NotRequired[float]
     confidence_score: NotRequired[float]
     confidence_reason: NotRequired[str]
+    pincode_valid: NotRequired[bool]
+    pincode_city_match: NotRequired[bool]
+    pincode_state_match: NotRequired[bool]
+    pincode_match_reason: NotRequired[str]
+
 
 class UserAddress(TypedDict):
     name: str

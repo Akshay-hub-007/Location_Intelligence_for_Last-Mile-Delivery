@@ -2,7 +2,13 @@
 
 from langgraph.graph import END, START, StateGraph
 
-from app.address_cleaning import add_confidence, address_parsing, language_translation, strip_landmark_prefix
+from app.address_cleaning import (
+    add_confidence,
+    address_parsing,
+    language_translation,
+    strip_landmark_prefix,
+    validate_pincode,
+)
 from app.services.geocode_service import get_lat_lon
 from app.states import AddressState, UserAddress
 
@@ -38,7 +44,6 @@ def _confidence_node(state: AddressState) -> dict[str, float | str]:
     }
 
 
-
 address_cleaning = StateGraph(AddressState)
 address_cleaning.add_node("translate_address", _translate_node)
 address_cleaning.add_node("address_parsing", _parse_node)
@@ -53,6 +58,19 @@ compiled_address_cleaning = address_cleaning.compile()
 def _address_cleaning_node(state: UserAddress) -> dict[str, AddressState]:
     # The child graph works on AddressState; UserAddress holds it under `address`.
     return {"address": compiled_address_cleaning.invoke(state["address"])}
+
+
+def _pincode_check_node(state: UserAddress) -> dict[str, AddressState]:
+    """Cross-check the parsed pincode/city/state against the India post office dataset."""
+    address_state = state["address"]
+    parsed_address = address_state.get("parsed_address")
+    if not parsed_address:
+        return {}
+
+    result = validate_pincode(parsed_address, state.get("pincode", ""))
+    updated_address = dict(address_state)
+    updated_address.update(result)
+    return {"address": updated_address}
 
 
 async def _geocode_node(state: UserAddress) -> dict[str, AddressState]:
@@ -76,9 +94,11 @@ async def _geocode_node(state: UserAddress) -> dict[str, AddressState]:
 
 main_workflow = StateGraph(UserAddress)
 main_workflow.add_node("address_cleaning", _address_cleaning_node)
+main_workflow.add_node("pincode_check", _pincode_check_node)
 main_workflow.add_node("geocode", _geocode_node)
 main_workflow.add_edge(START, "address_cleaning")
-main_workflow.add_edge("address_cleaning", "geocode")
+main_workflow.add_edge("address_cleaning", "pincode_check")
+main_workflow.add_edge("pincode_check", "geocode")
 main_workflow.add_edge("geocode", END)
 compiled_main_workflow = main_workflow.compile()
 
@@ -91,6 +111,5 @@ async def clean_user_address(request: dict[str, str]) -> dict:
         "pincode": request.get("pincode", ""),
         "landmark": request.get("landmark", ""),
         "address": {"raw_address": request["address"]},
-        
     }
     return await compiled_main_workflow.ainvoke(state)

@@ -14,12 +14,17 @@
     main { width:min(1120px,calc(100% - 40px)); margin:32px auto 60px; }
     .eyebrow { margin:0 0 10px; color:var(--brand); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
     h2 { margin:0; font-size:1.25rem; }
-    .users { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0 32px; }
+    .users { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0 24px; }
     button.user { border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--card); text-align:left; cursor:pointer; color:var(--ink); box-shadow:0 1px 2px #0f172a0a; transition:.18s; }
     button.user:hover, button.user.active { border-color:var(--brand); transform:translateY(-2px); box-shadow:0 8px 20px #2563eb22; }
     .user strong, .user span { display:block; } .user span { margin-top:5px; color:var(--muted); font-size:.85rem; }
     .load-exact { margin-top:12px; border:0; border-radius:10px; padding:10px 14px; background:var(--brand); color:#fff; font-weight:700; cursor:pointer; }
     .load-exact:hover { box-shadow:0 8px 20px #2563eb22; }
+    .action-row { display:flex; align-items:center; gap:14px; margin:0 0 24px; }
+    .extract-btn { border:0; border-radius:10px; padding:13px 22px; background:var(--brand); color:#fff; font-weight:700; font-size:.95rem; cursor:pointer; transition:.18s; box-shadow:0 1px 2px #0f172a0a; }
+    .extract-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 8px 20px #2563eb33; }
+    .extract-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .selected-hint { color:var(--muted); font-size:.9rem; }
     #empty { padding:60px 20px; text-align:center; border:1px dashed #cbd5e1; border-radius:16px; color:var(--muted); background:#fff; }
     #result { display:none; }
     #result.visible { display:block; }
@@ -35,33 +40,106 @@
     .confidence { margin-top:14px; padding:14px; border-left:4px solid var(--brand); border-radius:8px; background:#eff6ff; color:#1e3a8a; }
     .confidence strong { display:block; margin-bottom:4px; }
     .confidence .reason { margin-top:6px; color:#334155; line-height:1.5; }
+    .pincode-check { margin-top:14px; padding:14px; border-left:4px solid var(--muted); border-radius:8px; background:#f8fafc; }
+    .pincode-check.match { border-left-color:var(--good); background:#ecfdf5; }
+    .pincode-check.partial { border-left-color:#d97706; background:#fffbeb; }
+    .pincode-check.mismatch { border-left-color:#dc2626; background:#fef2f2; }
+    .pincode-check .head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .pincode-check strong { display:block; }
+    .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+    .badge.good { background:#d1fae5; color:#065f46; }
+    .badge.warn { background:#fef3c7; color:#92400e; }
+    .badge.bad { background:#fee2e2; color:#991b1b; }
+    .sub-badges { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .sub-badges span { font-size:.78rem; color:#334155; }
+    .pincode-check .reason { margin-top:8px; color:#334155; line-height:1.5; }
     .map-link { display:inline-flex; align-items:center; justify-content:center; margin-top:14px; padding:10px 14px; border-radius:10px; background:var(--brand); color:#fff; text-decoration:none; font-weight:700; transition:transform .18s, box-shadow .18s; }
     .map-link:hover { transform:translateY(-1px); box-shadow:0 8px 20px #2563eb33; }
     .error { padding:18px; border-radius:12px; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; }
     .loading { color:var(--muted); font-size:.95rem; }
-    @media (max-width:700px) { .grid { grid-template-columns:1fr; } dl { grid-template-columns:1fr; } }
+    @media (max-width:700px) { .grid { grid-template-columns:1fr; } dl { grid-template-columns:1fr; } .action-row { flex-wrap:wrap; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Pata</h1>
-    <p>Choose a delivery user to compare their original address with the cleaned, structured and geocoded result.</p>
+    <p>Choose a delivery user, then run the workflow to compare their original address with the cleaned, structured and geocoded result.</p>
   </header>
   <main>
     <p class="eyebrow">Demo users</p>
     <h2>Select a user</h2>
     <section id="users" class="users" aria-live="polite"><p class="loading">Loading users…</p></section>
-    <section id="empty">Select a user to run the address workflow.</section>
+    <div class="action-row">
+      <button id="extractBtn" class="extract-btn" disabled>Extract address</button>
+      <span id="selectedHint" class="selected-hint">No user selected yet</span>
+    </div>
+    <section id="empty">Select a user, then click "Extract address" to run the workflow.</section>
     <section id="result" aria-live="polite"></section>
   </main>
   <script>
     const usersElement = document.querySelector('#users');
     const emptyElement = document.querySelector('#empty');
     const resultElement = document.querySelector('#result');
+    const extractBtn = document.querySelector('#extractBtn');
+    const selectedHint = document.querySelector('#selectedHint');
+
+    let selectedUser = null;
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const label = value => value.replaceAll('_', ' ');
     const coordinateValue = value => Number.isFinite(Number(value)) ? Number(value).toFixed(6) : '';
+
+    function buildPincodeCheck(address) {
+      const pincodeValid = address.pincode_valid;
+      if (pincodeValid == null) return '';
+
+      const cityMatch = !!address.pincode_city_match;
+      const stateMatch = !!address.pincode_state_match;
+      const reason = address.pincode_match_reason || '';
+
+      let tone = 'mismatch';
+      let badgeTone = 'bad';
+      let badgeLabel = 'Not found';
+      if (pincodeValid) {
+        if (cityMatch && stateMatch) { tone = 'match'; badgeTone = 'good'; badgeLabel = 'Match'; }
+        else if (cityMatch || stateMatch) { tone = 'partial'; badgeTone = 'warn'; badgeLabel = 'Partial match'; }
+        else { tone = 'mismatch'; badgeTone = 'bad'; badgeLabel = 'Mismatch'; }
+      }
+
+      const subBadge = (label, ok) => `<span class="badge ${ok ? 'good' : 'bad'}">${ok ? '✓' : '✕'} ${escapeHtml(label)}</span>`;
+
+      return `<div class="pincode-check ${tone}">
+        <div class="head"><strong>Pincode check</strong><span class="badge ${badgeTone}">${escapeHtml(badgeLabel)}</span></div>
+        ${pincodeValid ? `<div class="sub-badges">${subBadge('City / district', cityMatch)}${subBadge('State', stateMatch)}</div>` : ''}
+        ${reason ? `<div class="reason">${escapeHtml(reason)}</div>` : ''}
+      </div>`;
+    }
+
+    function buildPincodeCheck(address) {
+      const pincodeValid = address.pincode_valid;
+      if (pincodeValid == null) return '';
+
+      const cityMatch = !!address.pincode_city_match;
+      const stateMatch = !!address.pincode_state_match;
+      const reason = address.pincode_match_reason || '';
+
+      let tone = 'mismatch';
+      let badgeTone = 'bad';
+      let badgeLabel = 'Not found';
+      if (pincodeValid) {
+        if (cityMatch && stateMatch) { tone = 'match'; badgeTone = 'good'; badgeLabel = 'Match'; }
+        else if (cityMatch || stateMatch) { tone = 'partial'; badgeTone = 'warn'; badgeLabel = 'Partial match'; }
+        else { tone = 'mismatch'; badgeTone = 'bad'; badgeLabel = 'Mismatch'; }
+      }
+
+      const subBadge = (subLabel, ok) => `<span class="badge ${ok ? 'good' : 'bad'}">${ok ? '✓' : '✕'} ${escapeHtml(subLabel)}</span>`;
+
+      return `<div class="pincode-check ${tone}">
+        <div class="head"><strong>Pincode check</strong><span class="badge ${badgeTone}">${escapeHtml(badgeLabel)}</span></div>
+        ${pincodeValid ? `<div class="sub-badges">${subBadge('City / district', cityMatch)}${subBadge('State', stateMatch)}</div>` : ''}
+        ${reason ? `<div class="reason">${escapeHtml(reason)}</div>` : ''}
+      </div>`;
+    }
 
     function showResult(data) {
       const address = data.modified_address || {};
@@ -79,31 +157,47 @@
       const confidence = confidenceScore != null
         ? `<div class="confidence"><strong>Confidence score</strong>${escapeHtml(String(confidenceScore))}${confidenceReason ? `<div class="reason"><strong>Reason:</strong> ${escapeHtml(confidenceReason)}</div>` : ''}</div>`
         : '';
+      const pincodeCheck = buildPincodeCheck(address);
       resultElement.innerHTML = `
         <p class="eyebrow">${escapeHtml(data.name)}’s address</p>
         <div class="grid">
-          <article class="panel"><h3>Provided address</h3><div class="address">${escapeHtml(data.original_address || address.raw_address || 'No address provided')}</div></article>
-          <article class="panel"><h3>Modified address</h3><div class="address">${escapeHtml(address.translated_address || address.raw_address || 'No translated address returned')}</div><h3 style="margin-top:20px">Parsed fields</h3><dl>${fields}</dl>${coordinates}${confidence}</article>
+          <article class="panel"><h3>Provided details</h3><div class="address">Name: ${escapeHtml(data.name || '—')}<br>Phone: ${escapeHtml(data.phone || '—')}<br>Pincode: ${escapeHtml(data.pincode || '—')}<br><br>Address: ${escapeHtml(data.original_address || address.raw_address || 'No address provided')}</div></article>
+          <article class="panel"><h3>Modified address</h3><div class="address">${escapeHtml(address.translated_address || address.raw_address || 'No translated address returned')}</div><h3 style="margin-top:20px">Parsed fields</h3><dl>${fields}</dl>${coordinates}${confidence}${pincodeCheck}</article>
         </div>`;
       emptyElement.style.display = 'none';
       resultElement.classList.add('visible');
     }
 
-    async function selectUser(user, button) {
+    function selectUser(user, button) {
       document.querySelectorAll('.user').forEach(item => item.classList.remove('active'));
       button.classList.add('active');
+      selectedUser = user;
+      extractBtn.disabled = false;
+      selectedHint.textContent = `Selected: ${user.name}`;
+      resultElement.classList.remove('visible');
+      emptyElement.innerHTML = 'Ready to run the workflow for this user. Click "Extract address" above.';
+      emptyElement.style.display = 'block';
+    }
+
+    async function extractAddress() {
+      if (!selectedUser) return;
+      extractBtn.disabled = true;
       resultElement.classList.remove('visible');
       emptyElement.innerHTML = '<p class="loading">Running translation, parsing and geocoding…</p>';
       emptyElement.style.display = 'block';
       try {
-        const response = await fetch(user.detail_url);
+        const response = await fetch(selectedUser.detail_url);
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'Workflow request failed');
         showResult(data);
       } catch (error) {
         emptyElement.innerHTML = `<div class="error"><strong>Could not process this address.</strong><br>${escapeHtml(error.message)}</div>`;
+      } finally {
+        extractBtn.disabled = false;
       }
     }
+
+    extractBtn.addEventListener('click', extractAddress);
 
     async function loadUsers() {
       try {
@@ -113,19 +207,10 @@
         users.forEach(user => {
           const button = document.createElement('button');
           button.className = 'user';
-          button.innerHTML = `<strong>${escapeHtml(user.name)}</strong><span>Get exact address</span>`;
+          button.innerHTML = `<strong>${escapeHtml(user.name)}</strong><span>Phone: ${escapeHtml(user.phone || '—')}<br>Pincode: ${escapeHtml(user.pincode || '—')}<br>${escapeHtml(user.address || 'No address provided')}</span>`;
           button.addEventListener('click', () => selectUser(user, button));
           usersElement.appendChild(button);
         });
-
-        const firstUser = users[0];
-        if (firstUser) {
-          const firstButton = usersElement.querySelector('.user');
-          if (firstButton) {
-            firstButton.classList.add('active');
-            selectUser(firstUser, firstButton);
-          }
-        }
       } catch (error) {
         usersElement.innerHTML = `<div class="error">Could not load demo users: ${escapeHtml(error.message)}</div>`;
       }
