@@ -1,58 +1,207 @@
 # Pata — Indian Address Cleaning & Geocoding API
 
-Pata is an MVP for converting messy Indian delivery addresses into structured address fields, confidence data, and geographic coordinates. It is designed for last-mile delivery use cases where addresses can include mixed scripts, local landmarks, informal areas, landmark prefixes, and incomplete information.
+Pata is an MVP for **Indian address intelligence for last-mile delivery**. It converts messy, multilingual, informal, or incomplete delivery addresses into structured address data, validates postal information, evaluates address confidence, and converts the address into geographic coordinates.
 
-## What is completed
+The project uses a **hybrid architecture**: specialized tools handle fast deterministic processing, while Gemini is used selectively for confidence scoring and reasoning.
 
-- FastAPI backend with interactive Swagger documentation.
-- Address expansion and parsing using **libpostal**.
-- LangGraph workflow for address translation, landmark cleanup, parsing, confidence scoring, and geocoding.
-- Translation node for converting regional-language input to English before parsing.
-- Landmark-prefix stripping for phrases such as near, opposite, behind, beside, and close to.
-- Structured address output: house number, building, street, landmark, area, city, district, state, postal code, and country.
-- Confidence score and reason for the parsed address.
-- Latitude/longitude lookup through `geopy` + OpenStreetMap Nominatim, restricted to India.
-- Health endpoint that reports whether the native libpostal dependency is available.
+## ✨ Features
 
-## Workflow
+### Address Processing
+- Multilingual address translation using `deep-translator`
+- Landmark-prefix cleanup for phrases such as near, opposite, behind, beside, and close to
+- Address parsing using **libpostal**
+- Structured fields: house number, building, street, landmark, area, city, district, state, postal code, country
+
+### Validation
+- Local Indian pincode CSV/dataset lookup
+- Pincode existence checking
+- City and state consistency checking
+- Avoids unnecessary LLM/API calls for deterministic validation
+
+### AI Confidence
+- Gemini LLM evaluates address quality
+- Returns a confidence score and reason
+- Gemini is used selectively rather than for the complete pipeline
+
+### Geocoding
+- `geopy.geocoders.Nominatim`
+- OpenStreetMap / Nominatim location data
+- India-restricted geocoding
+- Returns latitude, longitude and location information
+
+### Workflow
+- LangChain for LLM integration
+- LangGraph for the main workflow and nested address-cleaning subgraph
+
+### API & UI
+- FastAPI backend
+- Swagger/OpenAPI documentation
+- Simple browser dashboard
+- Temporary dummy users
+- libpostal health endpoint
+
+### Deployment
+- Dockerized application
+- Linux environment inside Docker for libpostal
+- Recommended for Windows because libpostal has native/Linux-oriented dependencies
+
+---
+
+## 🔄 Workflow
+
+### LangGraph Workflow Architecture
+
+The project uses a **nested LangGraph architecture**. The main workflow invokes the compiled address-cleaning subgraph before continuing with pincode validation and geocoding.
+
+![LangGraph Workflow Architecture](assets/langgraph_workflow.png)
 
 ```text
-Raw address
-  → Translate address
-  → Strip landmark prefix
-  → Parse with libpostal
-  → Score confidence
-  → Geocode with Nominatim
-  → Structured address + latitude + longitude + confidence
+Raw / Messy Address
+        ↓
+Translate Address
+        ↓
+Strip Landmark Prefix
+        ↓
+Parse with libpostal
+        ↓
+Validate Pincode / City / State
+        ↓
+Confidence Score + Reason
+        ↓
+Geocode with Nominatim
+        ↓
+Latitude + Longitude
+        ↓
+Delivery Location
 ```
 
-The workflow is implemented in `app/workflow.py`. The parent LangGraph workflow runs the nested address-cleaning graph first, then the asynchronous geocoding node.
+The LangGraph structure is:
 
-## API routes
+```text
+MAIN WORKFLOW
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Checks whether libpostal is available. |
-| `POST` | `/parse` | Returns raw libpostal address components. |
-| `POST` | `/expand` | Returns normalized address expansions. |
-| `POST` | `/workflow/clean` | Runs the complete LangGraph workflow. |
-| `GET` | `/users` | Lists temporary dummy users. |
-| `GET` | `/users/{user_id}/address` | Returns a user's original address and workflow-modified address. |
+START
+  ↓
+address_cleaning
+  ↓
+pincode_check
+  ↓
+geocode
+  ↓
+END
+```
 
-After starting the app, open `http://localhost:8000/docs` to test these routes from Swagger UI.
+The `address_cleaning` node invokes the compiled nested graph:
 
-## Demo UI
+```text
+ADDRESS CLEANING SUBGRAPH
 
-Open `http://localhost:8000/` for a clickable user dashboard. Select a dummy
-user to view their original address beside the address produced by the main
-LangGraph workflow, including parsed fields, coordinates, and confidence data when available.
+START
+  ↓
+translate_address
+  ↓
+address_parsing
+  ↓
+confidence
+  ↓
+END
+```
 
-The first dummy address loads by default, and each user card includes a button to get the exact address result.
+---
+## 🧰 Technology Stack
 
-To simulate selecting a user, first call `GET /users`, then open the returned
-`detail_url`, for example `GET /users/1/address`.
+| Category | Technology | Purpose |
+|---|---|---|
+| API | **FastAPI** | Backend REST API |
+| Workflow | **LangGraph** | Main and nested workflows |
+| LLM Framework | **LangChain** | Gemini integration/orchestration |
+| Translation | **deep-translator** | Regional language → English |
+| Address Parsing | **libpostal** | Fast structured address parsing |
+| AI | **Gemini LLM** | Confidence score and reasoning |
+| Validation | **Indian Pincode CSV** | Pincode, city and state validation |
+| Geocoding | **geopy** | Python geocoding interface |
+| Location Data | **OpenStreetMap / Nominatim** | Address → coordinates |
+| Deployment | **Docker** | Reproducible Linux environment |
+| Documentation | **Swagger / OpenAPI** | API testing and documentation |
 
-### Complete workflow request
+---
+
+## 🏗️ Architecture
+
+```text
+                         ┌───────────────────────┐
+                         │       FastAPI         │
+                         │       REST API        │
+                         └───────────┬───────────┘
+                                     │
+                                     ↓
+                         ┌───────────────────────┐
+                         │    Main LangGraph    │
+                         │                       │
+                         │  address_cleaning    │
+                         │  pincode_check       │
+                         │  geocode             │
+                         └───────────┬───────────┘
+                                     │
+              ┌──────────────────────┴──────────────────────┐
+              ↓                                             ↓
+   ┌────────────────────────┐                   ┌────────────────────┐
+   │ Address Cleaning        │                   │ Pincode Validation │
+   │ LangGraph Subgraph     │                   │                    │
+   └───────────┬────────────┘                   │ Local CSV          │
+               │                                │ City / State check │
+               ↓                                └────────────────────┘
+   ┌────────────────────────┐
+   │ translate_address      │
+   │ address_parsing        │
+   │ confidence             │
+   └───────────┬────────────┘
+               │
+               ↓
+   ┌────────────────────────┐
+   │ Structured Address     │
+   └───────────┬────────────┘
+               │
+               ↓
+   ┌────────────────────────┐
+   │ Nominatim / OpenStreet │
+   │ Map Geocoding           │
+   └───────────┬────────────┘
+               │
+               ↓
+        Latitude / Longitude
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+app/
+├── main.py
+│   └── FastAPI application and API routes
+│
+├── workflow.py
+│   └── Main and nested LangGraph workflows
+│
+├── address_cleaning.py
+│   └── Translation, landmark cleanup,
+│       parsing and confidence functions
+│
+├── states.py
+│   └── LangGraph state definitions
+│
+└── services/
+    └── geocode_service.py
+        └── geopy + Nominatim geocoding
+
+Dockerfile
+README.md
+```
+
+---
+
+## 🧪 Example Request
 
 ```json
 {
@@ -64,7 +213,7 @@ To simulate selecting a user, first call `GET /users`, then open the returned
 }
 ```
 
-Example response shape:
+## Example Response
 
 ```json
 {
@@ -89,7 +238,7 @@ Example response shape:
       "country": "India"
     },
     "confidence_score": 92,
-    "confidence_reason": "House number, road, city, state, postcode and country are present.",
+    "confidence_reason": "The address contains sufficient location information.",
     "lat": 17.3616,
     "lon": 78.4747,
     "latitude": 17.3616,
@@ -98,37 +247,146 @@ Example response shape:
 }
 ```
 
-## Project structure
+> Response values are illustrative. Actual parsed fields, confidence and coordinates depend on the input address and external data.
 
-```text
-app/
-├── main.py                    # FastAPI application and routes
-├── workflow.py                # Main and nested LangGraph workflows
-├── address_cleaning.py        # Translation, landmark cleanup, confidence scoring, and parsing functions
-├── states.py                  # LangGraph state definitions
-└── services/
-    └── geocode_service.py     # Geopy + Nominatim latitude/longitude lookup
-```
+---
 
-## Run with Docker (recommended on Windows)
+## 🔌 API Routes
 
-libpostal needs a native C library, so Docker is the simplest way to run the project on Windows.
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/health` | Checks whether libpostal is available |
+| `POST` | `/parse` | Returns raw libpostal address components |
+| `POST` | `/expand` | Returns normalized address expansions |
+| `POST` | `/workflow/clean` | Runs the complete LangGraph workflow |
+| `GET` | `/users` | Lists temporary dummy users |
+| `GET` | `/users/{user_id}/address` | Returns original and workflow-modified address |
 
-```powershell
-cd C:\Users\dell\Documents\ChatGPT\hack
-docker build -t pata-address-api .
-docker run --rm -p 8000:8000 pata-address-api
-```
+---
 
-The first build downloads the libpostal address model and can take time. Then visit:
+## 📖 Swagger Documentation
+
+After starting the app:
 
 ```text
 http://localhost:8000/docs
 ```
 
-The translation step now uses `deep-translator`, so you do not need a Hugging Face token for the app to run.
+Swagger allows you to inspect schemas and test the API interactively.
 
-## Test from PowerShell
+---
+
+## 🖥️ Demo UI
+
+Open:
+
+```text
+http://localhost:8000/
+```
+
+The dashboard allows you to:
+- Select a dummy customer
+- View the original address
+- View the workflow-processed address
+- Inspect parsed fields
+- View confidence information
+- View latitude and longitude
+
+To list demo users:
+
+```http
+GET /users
+```
+
+Then open the returned detail URL, for example:
+
+```http
+GET /users/1/address
+```
+
+---
+
+## 🌍 Geocoding
+
+Pata uses:
+
+```python
+from geopy.geocoders import Nominatim
+```
+
+to convert an address into coordinates using OpenStreetMap/Nominatim.
+
+```text
+Validated Address
+       ↓
+Nominatim
+       ↓
+Latitude + Longitude
+       ↓
+Customer Location
+```
+
+> Nominatim performs **geocoding** (address → coordinates). A dedicated routing engine/service should be used for production route calculation and ETA.
+
+---
+
+## 🤖 Why Hybrid AI?
+
+Pata intentionally does **not** use an LLM for every operation.
+
+```text
+                 PATA
+                  |
+       ┌──────────┴──────────┐
+       ↓                     ↓
+Specialized Tools        Gemini LLM
+       ↓                     ↓
+Translation             Confidence
+Parsing                 Reasoning
+Pincode validation
+Geocoding
+```
+
+Specialized tools handle deterministic operations, while Gemini handles semantic address-quality reasoning.
+
+This reduces unnecessary LLM usage and keeps the workflow faster and more predictable.
+
+---
+
+## 🐳 Run with Docker
+
+Docker is recommended on Windows because libpostal requires native dependencies that are easier to run inside a Linux environment.
+
+### Build
+
+```powershell
+cd C:\Users\dell\Documents\ChatGPT\hack
+docker build -t pata-address-api .
+```
+
+### Run
+
+```powershell
+docker run --rm -p 8000:8000 pata-address-api
+```
+
+Then open:
+
+```text
+http://localhost:8000/docs
+```
+
+or:
+
+```text
+http://localhost:8000/
+```
+
+The first build may take time because libpostal resources need to be downloaded/built.
+
+---
+
+## 🧪 Test from PowerShell
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/workflow/clean `
@@ -137,14 +395,157 @@ Invoke-RestMethod http://localhost:8000/workflow/clean `
   -Body '{"name":"John Doe","phone":"9999999999","pincode":"500001","landmark":"Near Charminar","address":"Near Charminar, Hyderabad"}'
 ```
 
-## Current limitations and next steps
+---
 
-- Public Nominatim is suitable for a small demo only; production should use a geocoding provider or self-hosted service with caching and rate limits.
-- Improve confidence scoring with deterministic rules and test coverage alongside the LLM prompt.
-- Validate returned coordinates against pincode, city, and state data from the India Pincode Directory.
-- Query nearby OpenStreetMap landmarks to resolve phrases such as “opposite temple” or “near gate 2”.
-- Let customers or delivery agents confirm/correct the predicted map pin.
+## 🏥 Health Check
 
-## Privacy
+```http
+GET /health
+```
 
-Keep the original address only for the time needed to create the geocode. Store any corrections as auditable, reversible structured data rather than silently replacing the user’s input.
+The endpoint reports whether the native libpostal dependency is available.
+
+---
+
+## ⚙️ Current Limitations
+
+- Public Nominatim is suitable for a small demo and should not be treated as an unlimited production geocoding service.
+- Production should use an appropriate geocoding provider or self-hosted service with caching and rate limits.
+- Confidence scoring should be strengthened with deterministic rules and automated tests alongside the LLM.
+- Pincode validation should use a reliable and regularly updated Indian postal dataset.
+- Geocoding results should be cross-checked against pincode, city and state data.
+- Landmark ambiguity such as `opposite temple` or `near gate 2` may require nearby OpenStreetMap landmark searches.
+- Customers or delivery agents should be able to confirm/correct the final map pin.
+- Production route calculation should use a dedicated routing engine.
+
+---
+
+## 🔮 Future Improvements
+
+### Landmark Verification
+
+Query nearby OpenStreetMap features to resolve:
+
+```text
+Near Temple
+Opposite Hospital
+Behind Mall
+Near Gate 2
+```
+
+### Stronger Validation
+
+Combine:
+
+```text
+libpostal
++
+Pincode Dataset
++
+City / State Validation
++
+Geocoding Result
++
+Nearby Landmarks
+```
+
+### Human Confirmation
+
+```text
+System Prediction
+       ↓
+Customer / Delivery Agent Confirmation
+       ↓
+Corrected Map Pin
+```
+
+### Production Geocoding
+
+Add:
+
+- Caching
+- Rate limiting
+- Retry handling
+- Dedicated geocoding provider or self-hosted service
+
+### Multi-Delivery Routing
+
+Extend from:
+
+```text
+Delivery Agent → One Customer
+```
+
+to:
+
+```text
+Delivery Agent
+      ↓
+Customer A
+      ↓
+Customer B
+      ↓
+Customer C
+      ↓
+Optimized Delivery Route
+```
+
+---
+
+## 🔐 Privacy
+
+The original address should be retained only for as long as required to perform processing/geocoding.
+
+When corrections are made:
+
+- Keep the original input auditable.
+- Store corrections as structured data.
+- Avoid silently overwriting the original address.
+- Avoid storing unnecessary personal information.
+
+---
+
+## 🎯 Project Goal
+
+Pata transforms:
+
+```text
+Messy Address
+      ↓
+Clean Address
+      ↓
+Structured Address
+      ↓
+Validated Address
+      ↓
+Confidence
+      ↓
+Coordinates
+      ↓
+Delivery Location
+```
+
+### Core Principle
+
+> **Use specialized systems for speed and reliability, and use AI where reasoning actually adds value.**
+
+---
+
+## 📌 Project Status
+
+**MVP implemented**
+
+Current implementation includes:
+
+- FastAPI API
+- Swagger documentation
+- LangChain
+- LangGraph nested workflow
+- deep-translator
+- libpostal
+- Gemini LLM
+- Indian pincode validation
+- geopy
+- OpenStreetMap Nominatim
+- Docker-based deployment
+- Demo dashboard

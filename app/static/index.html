@@ -147,6 +147,7 @@
       const fields = Object.entries(parsed).map(([key, value]) => `<div><dt>${escapeHtml(label(key))}</dt><dd>${escapeHtml(value || '—')}</dd></div>`).join('');
       const lat = address.lat ?? address.latitude;
       const lon = address.lon ?? address.longitude;
+      console.log(address)
       const confidenceScore = address.confidence_score;
       const confidenceReason = address.confidence_reason || '';
       const coordinates = lat != null && lon != null

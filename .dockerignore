@@ -1,4 +1,4 @@
-.git
-__pycache__
-.pytest_cache
-.venv
+    .git
+    __pycache__
+    .pytest_cache
+    .venv
