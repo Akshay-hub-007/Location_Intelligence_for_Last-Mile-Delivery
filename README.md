@@ -94,7 +94,7 @@ libpostal needs a native C library, so Docker is the simplest way to run the pro
 
 ```powershell
 docker build -t pata-address-api .
-docker run --rm -p 8000:8000 pata-address-api
+docker run --rm -p 8000:8000 -e GOOGLE_API_KEY= google-api-key pata-address-api
 ```
 
 
