@@ -262,20 +262,6 @@ README.md
 | `GET` | `/users` | Lists temporary dummy users |
 | `GET` | `/users/{user_id}/address` | Returns original and workflow-modified address |
 
----
-
-## 📖 Swagger Documentation
-
-After starting the app:
-
-```text
-http://localhost:8000/docs
-```
-
-Swagger allows you to inspect schemas and test the API interactively.
-
----
-
 ## 🖥️ Demo UI
 
 Open:
@@ -367,7 +353,7 @@ docker build -t pata-address-api .
 ### Run
 
 ```powershell
-docker run --rm -p 8000:8000 pata-address-api
+docker run --rm -p 8000:8000 -e GOOGLE_API_KEY=gemini-api-key pata-address-api
 ```
 
 Then open:
@@ -394,9 +380,17 @@ Invoke-RestMethod http://localhost:8000/workflow/clean `
   -ContentType "application/json" `
   -Body '{"name":"John Doe","phone":"9999999999","pincode":"500001","landmark":"Near Charminar","address":"Near Charminar, Hyderabad"}'
 ```
+=======
+```powershell
+docker build -t pata-address-api .
+docker run --rm -p 8000:8000 -e GOOGLE_API_KEY= google-api-key pata-address-api
+```
+
+>>>>>>> 9fda8d0e5ee7750069cf53f7582eeff5688a3ecc
 
 ---
 
+<<<<<<< HEAD
 ## 🏥 Health Check
 
 ```http
@@ -549,3 +543,11 @@ Current implementation includes:
 - OpenStreetMap Nominatim
 - Docker-based deployment
 - Demo dashboard
+=======
+- Public Nominatim is suitable for a small demo only; production should use a geocoding provider or self-hosted service with caching and rate limits.
+- Add automatic language detection so the translator selects the correct Indic language code.
+- Validate returned coordinates against pincode, city, and state data from the India Pincode Directory.
+- Query nearby OpenStreetMap landmarks to resolve phrases such as “opposite temple” or “near gate 2”.
+- Return a confidence score, evidence, and multiple candidates when the location is ambiguous.
+- Let customers or delivery agents confirm/correct the predicted map pin.
+>>>>>>> 9fda8d0e5ee7750069cf53f7582eeff5688a3ecc

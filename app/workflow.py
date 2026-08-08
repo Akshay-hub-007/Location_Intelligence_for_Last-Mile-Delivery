@@ -81,6 +81,7 @@ async def _geocode_node(state: UserAddress) -> dict[str, AddressState]:
         return {}
 
     result = await get_lat_lon(address)
+    print(result)
     if result is None:
         return {}
 
